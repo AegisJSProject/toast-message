@@ -1,23 +1,14 @@
 import terser from '@rollup/plugin-terser';
 
 export default [{
-	input: 'index.js',
+	input: 'toast-message.js',
 	output: [{
-		file: 'index.cjs',
+		file: 'toast-message.cjs',
 		format: 'cjs',
 	}, {
-		file: 'index.min.js',
-		format: 'iife',
+		file: 'toast-message.min.js',
+		format: 'module',
 		plugins: [terser()],
 		sourcemap: true,
-	}, {
-		file: 'index.mjs',
-		format: 'module',
 	}],
-}, {
-	input: 'consts.js',
-	output: {
-		file: 'consts.cjs',
-		format: 'cjs',
-	}
-}];
+},];
