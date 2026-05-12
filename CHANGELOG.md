@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.0.1] - 2026-05-12
+
+### Added
+- Add support for `DocumentFragment` in `create()` & `toast()`
+
 ## [v1.0.0] - 2026-05-12
 
 Initial Release
