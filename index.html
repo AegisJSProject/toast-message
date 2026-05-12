@@ -8,12 +8,20 @@
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
 		<script type="importmap" integrity="{{ INTEGRITY }}">{{ IMPORTMAP }}</script>
 		<script src="{{ POLYFILLS }}" referrerpolicy="no-referrer" crossorigin="anonymous" defer=""></script>
+		<script type="module" src="/toast-message.js" referrerpolicy="no-referrer"></script>
 	</head>
 	<body>
 		<header id="header">
 			<h1>Hello, World!</h1>
 		</header>
-		<nav id="nav"></nav>
+		<nav id="nav">
+			<button type="button" command="show-popover" commandfor="toast-system" accesskey="1">Show System</button>
+			<button type="button" command="show-popover" commandfor="toast-light" accesskey="2">Show Light</button>
+			<button type="button" command="show-popover" commandfor="toast-dark" accesskey="3">Show Dark</button>
+			<button type="button" command="show-popover" commandfor="toast-system-auto" accesskey="4">Show System (Auto)</button>
+			<button type="button" command="show-popover" commandfor="toast-light-auto" accesskey="5">Show Light (Auto)</button>
+			<button type="button" command="show-popover" commandfor="toast-dark-auto" accesskey="6">Show Dark (Auto)</button>
+		</nav>
 		<main id="main">
 			<details>
 				<summary>Request</summary>
@@ -30,5 +38,23 @@
 		</main>
 		<aside id="sidebar"></aside>
 		<footer id="footer"></footer>
+		<toast-message id="toast-system" duration="3000" position="top-start">
+			<p slot="content">Hello, World! (System Manual)</p>
+		</toast-message>
+		<toast-message id="toast-light" duration="3000" theme="light" position="bottom-end">
+			<p slot="content">Hello, World! (Light Manual)</p>
+		</toast-message>
+		<toast-message id="toast-dark" theme="dark" duration="3000">
+			<p slot="content">Hello, World! (Dark Manual)</p>
+		</toast-message>
+		<toast-message id="toast-system-auto" popover="auto" duration="3000">
+			<p slot="content">Hello, World! (System Auto)</p>
+		</toast-message>
+		<toast-message id="toast-light-auto" popover="auto" theme="light" duration="3000">
+			<p slot="content">Hello, World! (Light Auto)</p>
+		</toast-message>
+		<toast-message id="toast-dark-auto" popover="auto" theme="dark" duration="3000">
+			<p slot="content">Hello, World! (Dark Auto)</p>
+		</toast-message>
 	</body>
 </html>
