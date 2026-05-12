@@ -353,7 +353,7 @@ export class HTMLToastMessageElement extends HTMLElement {
 
 	/**
 	 *
-	 * @param {string|Element} content
+	 * @param {string|Element|DocumentFragment} content
 	 * @param {object} config
 	 * @param {number} [config.duration]
 	 * @param {boolean} [config.autoRemove=false]
@@ -374,14 +374,18 @@ export class HTMLToastMessageElement extends HTMLElement {
 		signal?.throwIfAborted?.();
 		const el = new this();
 
-		if (content instanceof Element) {
-			content.slot = 'content';
-			el.append(content);
-		} else if (typeof content === 'string') {
+		if (typeof content === 'string') {
 			const slotted = document.createElement('p');
 			slotted.slot = 'content';
 			slotted.textContent = content;
 			el.append(slotted);
+		} else if (content instanceof Element) {
+			content.slot = 'content';
+			el.append(content);
+		} else if (content instanceof DocumentFragment) {
+			const container = document.createElement('div');
+			container.slot = 'content';
+			el.append(container);
 		}
 
 		if (Number.isSafeInteger(duration) && duration > 0) {
@@ -415,7 +419,7 @@ export class HTMLToastMessageElement extends HTMLElement {
 
 	/**
 	 *
-	 * @param {string|Element} content
+	 * @param {string|Element|DocumentFragment} content
 	 * @param {object} config
 	 * @param {number} [config.duration]
 	 * @param {boolean} [config.autoRemove=true]
