@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.0.3] - 2026-05-13
+
+### Changed
+- `toast()` now async and uses `navigator.locks` to queue toasts
+- Rename physical (left/right) property names with logical names
+- `whenDisposed` now awaits a `toggle` event with a `newState === 'closed'`
+- Misc logic updates
+
 ## [v1.0.2] - 2026-05-12
 
 ### Fixed
