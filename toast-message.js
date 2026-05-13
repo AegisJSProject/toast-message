@@ -385,6 +385,7 @@ export class HTMLToastMessageElement extends HTMLElement {
 		} else if (content instanceof DocumentFragment) {
 			const container = document.createElement('div');
 			container.slot = 'content';
+			container.append(content);
 			el.append(container);
 		}
 
