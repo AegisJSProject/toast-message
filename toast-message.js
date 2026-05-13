@@ -5,8 +5,8 @@ const SELECTOR_PREFIX = 'toast-message';
 const PROPS = {
 	'top': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
 	'bottom': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
-	'left': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
-	'right': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
+	'start': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
+	'end': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
 	'margin-x': { syntax: '<length-percentage> | auto', initialValue: 'auto' },
 	'translate-y': { syntax: '<length-percentage>', initialValue: '100%' },
 	'offset': { syntax: '<length-percentage>', initialValue: '20px' }
@@ -32,8 +32,8 @@ sheet.replace(`@layer components.toast {
 		/* Use custom properties driven by the position attribute */
 		inset-block-start: var(--${SELECTOR_PREFIX}-top, ${PROPS.top.initialValue});
 		inset-block-end: var(--${SELECTOR_PREFIX}-bottom, var(--${SELECTOR_PREFIX}-offset, ${PROPS.offset.initialValue}));
-		inset-inline-start: var(--${SELECTOR_PREFIX}-left, ${PROPS.left.initialValue});
-		inset-inline-end: var(--${SELECTOR_PREFIX}-right, ${PROPS.right.initialValue});
+		inset-inline-start: var(--${SELECTOR_PREFIX}-start, ${PROPS.start.initialValue});
+		inset-inline-end: var(--${SELECTOR_PREFIX}-end, ${PROPS.end.initialValue});
 		margin-inline: var(--${SELECTOR_PREFIX}-margin-x, ${PROPS['margin-x'].initialValue});
 		border: 1px solid rgba(128, 128, 128, 0.3);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -79,21 +79,21 @@ sheet.replace(`@layer components.toast {
 	}
 
 	:host([position$="start"]) {
-		--${SELECTOR_PREFIX}-left: var(--${SELECTOR_PREFIX}-offset, ${PROPS.offset.initialValue});
-		--${SELECTOR_PREFIX}-right: auto;
+		--${SELECTOR_PREFIX}-start: var(--${SELECTOR_PREFIX}-offset, ${PROPS.offset.initialValue});
+		--${SELECTOR_PREFIX}-end: auto;
 		--${SELECTOR_PREFIX}-margin-x: 0;
 	}
 
 	:host([position$="end"]) {
-		--${SELECTOR_PREFIX}-left: auto;
-		--${SELECTOR_PREFIX}-right: var(--${SELECTOR_PREFIX}-offset, ${PROPS.offset.initialValue});
+		--${SELECTOR_PREFIX}-start: auto;
+		--${SELECTOR_PREFIX}-end: var(--${SELECTOR_PREFIX}-offset, ${PROPS.offset.initialValue});
 		--${SELECTOR_PREFIX}-margin-x: 0;
 	}
 
 	:host([position$="center"]),
 	:host(:not([position])) { /* Default */
-		--${SELECTOR_PREFIX}-left: 0;
-		--${SELECTOR_PREFIX}-right: 0;
+		--${SELECTOR_PREFIX}-start: 0;
+		--${SELECTOR_PREFIX}-end: 0;
 		--${SELECTOR_PREFIX}-margin-x: auto;
 	}
 
@@ -125,13 +125,13 @@ sheet.replace(`@layer components.toast {
 				overlay ${ANIMATION_DURATION}ms allow-discrete;
 		}
 
-		:host(:popover-open) {
+		:host(:state(open)) {
 			opacity: 1;
 			transform: translateY(0);
 		}
 
 		@starting-style {
-			:host(:popover-open) {
+			:host(:state(open)) {
 				opacity: 0;
 				transform: translateY(var(--${SELECTOR_PREFIX}-translate-y, ${PROPS['translate-y'].initialValue}));
 			}
@@ -140,12 +140,35 @@ sheet.replace(`@layer components.toast {
 }`);
 
 export class HTMLToastMessageElement extends HTMLElement {
+	/**
+	 * @type ShadowRoot
+	 */
 	#shadow = this.attachShadow({ mode: 'closed' });
+
+	/**
+	 * @type ElementInternals
+	 */
 	#internals = this.attachInternals();
+
+	/**
+	 * @type AbortController
+	 */
 	#controller;
-	#resolvers;
+
+	/**
+	 * @type number
+	 */
 	#timeout = NaN;
+
+	/**
+	 * @type Element|null
+	 */
 	#previousActive = null;
+
+	/**
+	 * @type {PromiseWithResolvers<void>}
+	 */
+	#connectedResolvers = Promise.withResolvers();
 
 	constructor() {
 		super();
@@ -262,14 +285,28 @@ export class HTMLToastMessageElement extends HTMLElement {
 	}
 
 	/**
-	 * @return {Promise<void>}
+	 * @return {Promise<HTMLToastMessageElement>}
 	 */
 	get whenDismissed() {
-		if (this.open) {
-			return this.#resolvers?.promise;
-		} else {
-			return Promise.resolve();
-		}
+		const { resolve, reject, promise } = Promise.withResolvers();
+		const controller = new AbortController();
+
+		this.#connectedResolvers.promise.then(() => {
+			const signal = AbortSignal.any([this.#controller.signal, controller.signal]);
+
+			this.addEventListener('toggle', ({ newState }) => {
+				if (newState === 'closed') {
+					resolve(this);
+					controller.abort();
+				}
+			}, { signal });
+
+			this.#controller.signal.addEventListener('abort', ({ target }) => {
+				reject(target.reason);
+			}, { signal: controller.signal, once: true });
+		});
+
+		return promise;
 	}
 
 	connectedCallback() {
@@ -279,6 +316,8 @@ export class HTMLToastMessageElement extends HTMLElement {
 			this.popover = 'manual';
 		}
 
+		this.#connectedResolvers.resolve();
+
 		this.addEventListener('beforetoggle', ({ newState }) => {
 			if (newState === 'open') {
 				this.#previousActive = this.getRootNode().activeElement;
@@ -287,7 +326,6 @@ export class HTMLToastMessageElement extends HTMLElement {
 
 		this.addEventListener('toggle', ({ newState }) => {
 			if (newState === 'open') {
-				this.#resolvers = Promise.withResolvers();
 				const duration = this.duration;
 				this.#internals.states.add('open');
 
@@ -312,20 +350,19 @@ export class HTMLToastMessageElement extends HTMLElement {
 				}
 			} else {
 				this.#internals.states.delete('open');
-				this.#resolvers?.resolve?.();
 
 				if (! Number.isNaN(this.#timeout)) {
 					clearTimeout(this.#timeout);
 					this.#timeout = NaN;
 				}
 
-				if (this.autoRemove) {
-					this.remove();
-				}
-
 				if (this.#previousActive instanceof Element) {
 					this.#previousActive.focus();
 					this.#previousActive = null;
+				}
+
+				if (this.autoRemove) {
+					this.remove();
 				}
 			}
 		}, { passive: true, signal: this.#controller.signal });
@@ -333,12 +370,21 @@ export class HTMLToastMessageElement extends HTMLElement {
 		if (this.autoShow) {
 			this.showPopover();
 		}
+
 	}
 
 	disconnectedCallback() {
+		if (! Number.isNaN(this.#timeout)) {
+			clearTimeout(this.#timeout);
+			this.#timeout = NaN;
+		}
+
 		if (! this.#controller.signal.aborted) {
 			this.#controller.abort(new DOMException('Disconnected', 'AbortError'));
 		}
+
+		this.#connectedResolvers = Promise.withResolvers();
+		this.#previousActive = null;
 	}
 
 	[Symbol.dispose]() {
@@ -355,6 +401,8 @@ export class HTMLToastMessageElement extends HTMLElement {
 	 *
 	 * @param {string|Element|DocumentFragment} content
 	 * @param {object} config
+	 * @param {string} [config.id]
+	 * @param {string|string[]} [config.classList]
 	 * @param {number} [config.duration]
 	 * @param {boolean} [config.autoRemove=false]
 	 * @param {boolean} [config.autoShow=false]
@@ -363,6 +411,8 @@ export class HTMLToastMessageElement extends HTMLElement {
 	 * @returns {HTMLToastMessageElement}
 	 */
 	static create(content, {
+		id,
+		classList,
 		duration,
 		autoRemove = false,
 		autoShow = false,
@@ -387,6 +437,16 @@ export class HTMLToastMessageElement extends HTMLElement {
 			container.slot = 'content';
 			container.append(content);
 			el.append(container);
+		}
+
+		if (typeof id === 'string') {
+			el.id = id;
+		}
+
+		if (Array.isArray(classList)) {
+			el.classList.add(...classList);
+		} else if (typeof classList === 'string') {
+			el.classList.add(classList);
 		}
 
 		if (Number.isSafeInteger(duration) && duration > 0) {
@@ -422,19 +482,21 @@ export class HTMLToastMessageElement extends HTMLElement {
 	 *
 	 * @param {string|Element|DocumentFragment} content
 	 * @param {object} config
-	 * @param {number} [config.duration]
-	 * @param {boolean} [config.autoRemove=true]
-	 * @param {boolean} [config.autoShow=true]
+	 * @param {string} [config.lockName] Name for the lock to be requested
+	 * @param {string} [config.id]
+	 * @param {string|string[]} [config.classList]
+	 * @param {number} [config.duration=3000]
 	 * @param {"manual"|"auto"|"hint"} [config.popover="manual"]
 	 * @param {"light"|"dark"|"auto"}[config.theme]
 	 * @param {string|HTMLElement} [config.parent]
 	 * @param {DocumentOrShadowRoot} [config.base]
-	 * @returns {HTMLToastMessageElement}
+	 * @returns {Promise<HTMLToastMessageElement>}
 	 */
-	static toast(content, {
-		duration,
-		autoRemove = true,
-		autoShow = true,
+	static async toast(content, {
+		lockName = 'toast-message',
+		id,
+		classList,
+		duration = 3000,
 		popover = 'manual',
 		position = 'bottom-center',
 		theme,
@@ -444,18 +506,27 @@ export class HTMLToastMessageElement extends HTMLElement {
 	} = {}) {
 		if (typeof parent === 'string') {
 			return this.toast(content, {
+				lockName,
+				id,
+				classList,
 				duration,
-				autoRemove,
-				autoShow,
 				popover,
+				position,
 				theme,
 				parent: base.getElementById(parent),
 				signal,
 			});
 		} else if (parent instanceof HTMLElement) {
-			const toast = this.create(content, { duration, autoRemove, autoShow, theme, popover, position, signal });
-			parent.append(toast);
-			return toast;
+			return await navigator.locks.request(lockName, { signal, mode: 'exclusive' }, async lock => {
+				if (lock instanceof Lock) {
+					const toast = this.create(content, { duration, theme, popover, position, id, classList, signal });
+					parent.append(toast);
+					toast.showPopover();
+					await toast.whenDismissed;
+					toast.remove();
+					return toast;
+				}
+			});
 		} else {
 			throw new TypeError('Parent must be an HTMLElement or valid id.');
 		}
